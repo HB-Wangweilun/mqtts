@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+
+# Build output - electron-vite 中间产物（main/preload/renderer）
+out/
+
+# Build output - electron-builder 打包产物（NSIS 安装包 / Portable exe）
+dist/
+
+# Build output - electron-builder 旧版默认输出（兼容旧配置）
+release/
+
+# Build caches & type-checking artifacts
+.vite/
+*.tsbuildinfo
+*.ts.map
+.cache/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Environment & secrets
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+
+# IDE / Editor
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Test / Coverage
+coverage/
+.nyc_output/
+
+# 打包过程临时产物（safe-delete 沙箱绕开时移动产生的暂存目录）
+_recycle_bin_*/
+_recycle_bin_*.*
+
+# WorkBuddy IDE 本地数据（私有，不上传仓库）
+.workbuddy/
+
+# Misc
+*.local
+*.pid
+*.seed
+*.pid.lock

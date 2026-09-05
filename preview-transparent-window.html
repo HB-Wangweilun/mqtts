@@ -1,0 +1,638 @@
+<!doctype html>
+<html lang="zh-CN" data-page-node-id="Zl0XQbQ40QGkjSor5iwTxN">
+  <head data-page-node-id="GY6rivzzdC6cL9hI8GrXKR">
+    <meta charset="UTF-8" data-page-node-id="A2X1FOr2R237A3CQRqrbHb" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="4rRXVAdQZoUaKt1TMuyfBr" />
+    <title>MQTTS · 透明窗口效果预览</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+        overflow: hidden;
+        font-family:
+          'Segoe UI Variable', 'Segoe UI', system-ui, -apple-system, sans-serif;
+        color: #1f2937;
+      }
+      /* ===== 模拟 Windows 11 默认桌面壁纸（柔和的蓝青山水） ===== */
+      body {
+        background-color: #cce4f0;
+        background-image:
+          /* 上半天空 */
+          linear-gradient(180deg, #b8d8e8 0%, #a3c8d8 18%, #91b9cc 36%, transparent 56%),
+          /* 远处群山 */
+            radial-gradient(80% 40% at 50% 56%, #5d8a7a 0%, #6e9889 35%, transparent 70%),
+          /* 中景山 */
+            radial-gradient(70% 30% at 30% 65%, #4a7566 0%, transparent 60%),
+            radial-gradient(60% 25% at 75% 68%, #5a8474 0%, transparent 65%),
+          /* 湖面 */
+            linear-gradient(180deg, transparent 72%, #6a9387 75%, #789d92 88%, #87a89e 100%),
+          /* 底部桌面任务栏色调 */
+            radial-gradient(100% 20% at 50% 100%, #2c3540 0%, transparent 60%);
+        background-attachment: fixed;
+        background-size: cover;
+      }
+      /* 桌面任务栏（底部的 Win11 任务栏） */
+      .taskbar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        background: rgba(243, 243, 243, 0.78);
+        backdrop-filter: blur(40px) saturate(180%);
+        -webkit-backdrop-filter: blur(40px) saturate(180%);
+        border-top: 1px solid rgba(255, 255, 255, 0.6);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        z-index: 0;
+      }
+      .taskbar-icon {
+        width: 40px;
+        height: 36px;
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+      }
+      .taskbar-icon.active {
+        background: rgba(0, 120, 212, 0.18);
+        position: relative;
+      }
+      .taskbar-icon.active::after {
+        content: '';
+        position: absolute;
+        bottom: -2px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 12px;
+        height: 3px;
+        background: #0078d4;
+        border-radius: 2px;
+      }
+      /* 桌面图标（左上角） */
+      .desktop-icons {
+        position: fixed;
+        top: 16px;
+        left: 16px;
+        display: grid;
+        grid-template-columns: repeat(2, 80px);
+        gap: 12px;
+        z-index: 1;
+      }
+      .desktop-icon {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        font-size: 11px;
+        color: #fff;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+      }
+      .desktop-icon-box {
+        width: 40px;
+        height: 40px;
+        background: rgba(255, 255, 255, 0.18);
+        backdrop-filter: blur(8px);
+        border-radius: 6px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+      }
+      /* ===== 透明窗口（这是 MQTTS 应用窗口） ===== */
+      .window {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 10;
+        /* OS 层面 transparent + 内部 wrapper 占满 viewport + glass-shell 圆角悬浮 */
+        background: transparent;
+      }
+      /* 外层 wrapper：占满 OS 窗口，bg-transparent 让桌面在四周 8px 边距透出 */
+      .window-wrapper {
+        position: absolute;
+        inset: 0;
+        padding: 8px;
+        background: transparent;
+      }
+      /* .glass-shell —— 半透明磨砂面板（无外投影，避免黑色圈）
+       * 用户指定：0.75 白色覆盖 + 真正的强 blur(24px) saturate(150%)。
+       * 上一版 6px blur 在 0.75 半透明下肉眼看不出来（剩下 25% 桌面细节被 blur 6px 等于没糊），
+       * 故这次 blur 升到 24px 配合 150% 提饱和度，让那 25% 透出的桌面被强烈糊成柔色块。 */
+      .glass-shell {
+        position: relative;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        border-radius: 14px;
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        background-color: rgba(255, 255, 255, 0.75);
+        backdrop-filter: blur(24px) saturate(150%);
+        -webkit-backdrop-filter: blur(24px) saturate(150%);
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.5) inset;
+        isolation: isolate;
+        overflow: hidden;
+      }
+      /* 标题栏 */
+      .titlebar {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 8px 0 14px;
+        -webkit-app-region: drag;
+        flex-shrink: 0;
+      }
+      .titlebar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+        font-weight: 600;
+        color: #1f2937;
+      }
+      .titlebar-logo {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 60%, #f472b6 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-weight: 700;
+        font-size: 12px;
+        box-shadow: 0 2px 6px rgba(96, 165, 250, 0.4);
+      }
+      .titlebar-sub {
+        font-size: 11px;
+        font-weight: 400;
+        color: rgba(31, 41, 55, 0.6);
+        margin-left: 4px;
+      }
+      .titlebar-buttons {
+        display: flex;
+        gap: 2px;
+        -webkit-app-region: no-drag;
+      }
+      .titlebar-btn {
+        width: 36px;
+        height: 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 4px;
+        color: #1f2937;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .titlebar-btn:hover {
+        background: rgba(0, 0, 0, 0.06);
+      }
+      .titlebar-btn.close:hover {
+        background: #e81123;
+        color: #fff;
+      }
+      .titlebar-btn svg {
+        width: 10px;
+        height: 10px;
+      }
+      /* 主体 */
+      .body {
+        flex: 1;
+        display: flex;
+        gap: 8px;
+        padding: 0 8px 8px 8px;
+        min-height: 0;
+      }
+      .sidebar {
+        width: 240px;
+        flex-shrink: 0;
+        background-color: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+        padding: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .sidebar-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: rgba(31, 41, 55, 0.5);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 0 4px 4px;
+      }
+      .conn-item {
+        padding: 8px 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.5);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+      }
+      .conn-item.active {
+        background: rgba(96, 165, 250, 0.18);
+        border: 1px solid rgba(96, 165, 250, 0.3);
+      }
+      .conn-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+      .conn-dot.green {
+        background: #10b981;
+        box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
+      }
+      .conn-dot.gray {
+        background: #9ca3af;
+      }
+      .conn-dot.yellow {
+        background: #f59e0b;
+        box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+      }
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        min-width: 0;
+      }
+      .header {
+        height: 48px;
+        background-color: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+        gap: 12px;
+      }
+      .header-status {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+      }
+      .header-title {
+        font-weight: 600;
+      }
+      .header-meta {
+        color: rgba(31, 41, 55, 0.55);
+        font-size: 11px;
+      }
+      .header-spacer {
+        flex: 1;
+      }
+      .header-btn {
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.6);
+        font-size: 11px;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+      }
+      .header-btn.primary {
+        background: linear-gradient(180deg, #60a5fa 0%, #3b82f6 100%);
+        color: #fff;
+        border-color: transparent;
+      }
+      .workspace {
+        flex: 1;
+        display: flex;
+        gap: 8px;
+        min-height: 0;
+      }
+      .sub-panel {
+        width: 220px;
+        flex-shrink: 0;
+        background-color: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .msg-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+      .msg-list {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 10px;
+        padding: 10px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .msg-row {
+        padding: 8px 10px;
+        background: rgba(255, 255, 255, 0.7);
+        border-radius: 6px;
+        font-size: 11px;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .msg-time {
+        color: rgba(31, 41, 55, 0.5);
+        font-family: 'Consolas', monospace;
+        font-size: 10px;
+      }
+      .msg-topic {
+        font-weight: 600;
+        color: #1f2937;
+      }
+      .msg-payload {
+        color: rgba(31, 41, 55, 0.7);
+        font-family: 'Consolas', monospace;
+      }
+      .publish {
+        height: 110px;
+        background-color: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+      }
+      .detail {
+        width: 240px;
+        flex-shrink: 0;
+        background-color: rgba(255, 255, 255, 0.88);
+        backdrop-filter: blur(16px) saturate(130%);
+        -webkit-backdrop-filter: blur(12px) saturate(120%);
+        border: 1px solid rgba(255, 255, 255, 0.8);
+        border-radius: 10px;
+        box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.6) inset;
+        padding: 10px;
+      }
+      /* 顶部图例 */
+      .legend {
+        position: fixed;
+        top: 12px;
+        right: 12px;
+        background: rgba(255, 255, 255, 0.85);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 11px;
+        color: #1f2937;
+        box-shadow: 0 8px 28px -16px rgba(15, 23, 42, 0.3);
+        z-index: 100;
+        max-width: 240px;
+      }
+      .legend strong {
+        font-size: 12px;
+        display: block;
+        margin-bottom: 4px;
+      }
+      .legend-item {
+        display: flex;
+        gap: 6px;
+        align-items: flex-start;
+        margin-top: 4px;
+        line-height: 1.5;
+      }
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+        margin-top: 2px;
+      }
+      .legend-dot.blue {
+        background: #3b82f6;
+      }
+      .legend-dot.green {
+        background: #10b981;
+      }
+      .legend-dot.orange {
+        background: #f59e0b;
+      }
+    </style>
+  </head>
+  <body data-page-node-id="OvZE84ukbnflPZmAeg6Kmx">
+    <!-- 桌面任务栏（最底层） -->
+    <div class="taskbar" data-page-node-id="sBGIkknb8HfvXhoNDtGBgv">
+      <div class="taskbar-icon" data-page-node-id="Yn9815rF4hzPFW79JD7Rnn">⊞</div>
+      <div class="taskbar-icon" data-page-node-id="xqMVDJexzCa9sfLfR5bhTd">🔍</div>
+      <div class="taskbar-icon active" data-page-node-id="gym5mySWmAmwu4VaZISplT">⊡</div>
+      <div class="taskbar-icon" data-page-node-id="N6Z3jzZVD4pUePprtojApS">▶</div>
+      <div class="taskbar-icon" data-page-node-id="AZrss4adrYCDk0jK5XCMkg">✉</div>
+      <div class="taskbar-icon" data-page-node-id="Enyz7UDXVGEFxLEuWe9iQh">🎵</div>
+      <div class="taskbar-icon" data-page-node-id="H2V4uH6SYRd8Ouu8DBP54a">⚙</div>
+    </div>
+
+    <!-- 桌面图标（左上角） -->
+    <div class="desktop-icons" data-page-node-id="kZrRCSsFhmKyKMmqKL2zZV">
+      <div class="desktop-icon" data-page-node-id="yaDpyFPDT7xTksGjyMSQwY">
+        <div class="desktop-icon-box" data-page-node-id="m0bU9Tnn2F48o4ZXYxJfly">📁</div>
+        <span data-page-node-id="0ZaIgWHDWy1s6GffHxYc9R">项目文档</span>
+      </div>
+      <div class="desktop-icon" data-page-node-id="5qbwyl0QPnVUMMDoxoctVF">
+        <div class="desktop-icon-box" data-page-node-id="pFXUozX8EywvvqHiRD9KgC">📊</div>
+        <span data-page-node-id="oXg1WyAAsFd2L7dC5AADF3">数据报表</span>
+      </div>
+      <div class="desktop-icon" data-page-node-id="vSbJmIZQIaoZDZEt3Ln3U4">
+        <div class="desktop-icon-box" data-page-node-id="YgGJEGFWkIlMQgL2z6EDPD">📷</div>
+        <span data-page-node-id="OHOheoLisMN5eFHxppCsuh">截图</span>
+      </div>
+      <div class="desktop-icon" data-page-node-id="obJmJHxwn0cbcVb2VHPKSq">
+        <div class="desktop-icon-box" data-page-node-id="fq3LqP3HUASqpPMhzSSGmO">📝</div>
+        <span data-page-node-id="m72VFGwVydIEAitEkBvBg8">笔记</span>
+      </div>
+    </div>
+
+    <!-- MQTTS 窗口 -->
+    <div class="window" data-page-node-id="YFY1SGFpVZqlM2Pm6QfOIZ">
+      <div class="window-wrapper" data-page-node-id="WW1rapper000">
+      <div class="glass-shell" data-page-node-id="SOGsjShAFkaq3vn3Ys21uF">
+        <div class="titlebar" data-page-node-id="dFhzWqsJ28jX5Iil20jo3z">
+          <div class="titlebar-left" data-page-node-id="Cutne59CZZW7puxdFEn9Ei">
+            <div class="titlebar-logo" data-page-node-id="i543KOnBu9ekBGqLkfv58g">M</div>
+            <span data-page-node-id="Liq5LSgRG3SBW3oOohS0YA">MQTTS</span>
+            <span class="titlebar-sub" data-page-node-id="pJurINU0fwHvVpcc7yfoht">· MQTT 桌面客户端</span>
+          </div>
+          <div class="titlebar-buttons" data-page-node-id="Wx4B06ZmSFvVeNEIHZY6Ia">
+            <div class="titlebar-btn" title="最小化" data-page-node-id="4dpuhasCEzUbJ1M8Hn7Bnn">
+              <svg viewBox="0 0 10 10" data-page-node-id="szGxmHiNMQGzsmbDQ3Pzik"><line x1="0" y1="5" x2="10" y2="5" stroke="currentColor" stroke-width="1" data-page-node-id="zBjGr6eNPaPiyIycDLHlAn"/></svg>
+            </div>
+            <div class="titlebar-btn" title="最大化" data-page-node-id="pytRGgKDlf1ELIhvo0RvyP">
+              <svg viewBox="0 0 10 10" data-page-node-id="dbFfmhEBOUokk6WqpeaeE5"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1" data-page-node-id="8fQfklvVQUfQyr8PDR2mhD"/></svg>
+            </div>
+            <div class="titlebar-btn close" title="关闭" data-page-node-id="AZOhhtUbeuudcuVsEUakyC">
+              <svg viewBox="0 0 10 10" data-page-node-id="s1u2m1AFFyWjodhInlFOPU"><line x1="0" y1="0" x2="10" y2="10" stroke="currentColor" stroke-width="1" data-page-node-id="A352ygk04h7lFUYZt4yc1p"/><line x1="10" y1="0" x2="0" y2="10" stroke="currentColor" stroke-width="1" data-page-node-id="1uk7ri1FMIpXEVp2YwNtsS"/></svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="body" data-page-node-id="qU3z1bU5HcEmBy1XxYQfnJ">
+          <!-- 左侧连接列表 -->
+          <div class="sidebar" data-page-node-id="fDaDqxH5XJgMXTdkecxePo">
+            <div class="sidebar-title" data-page-node-id="MAoCkE39QVoUOvKKZSqFix">连接列表 · 3</div>
+            <div class="conn-item active" data-page-node-id="Csfg9aKH0CfKQEfekRWWcU">
+              <span class="conn-dot green" data-page-node-id="tOTjEDouGs51H9ZL2LTy2L"></span>
+              <span data-page-node-id="yaDhHNmdSSsYoV8fz2Dh3d">本地 Broker</span>
+            </div>
+            <div class="conn-item" data-page-node-id="gL94GHLyGEqhEM4MmNVkLq">
+              <span class="conn-dot yellow" data-page-node-id="OR9TB76e7fQBv5TEBNqwNF"></span>
+              <span data-page-node-id="DfU9deID5umakXuBsAE0VU">云端测试服</span>
+            </div>
+            <div class="conn-item" data-page-node-id="CiXkzZMBTVnGfDKYexgDr7">
+              <span class="conn-dot gray" data-page-node-id="tCKGEP6yFC1PKacx8v74pe"></span>
+              <span data-page-node-id="nDTCD9g3wImQbrtJCj832e">生产环境</span>
+            </div>
+            <div style="margin-top: 8px; padding: 0 4px;" data-page-node-id="ggaFw4d8AirlbKfNFb3Owa">
+              <div
+                style="font-size: 11px; padding: 6px 10px; border-radius: 6px; background: rgba(255,255,255,0.5); display: flex; gap: 6px; align-items: center; cursor: pointer;" data-page-node-id="DpO29HbsOlzkQw1AsQO4o8"
+              >
+                <span style="font-size: 13px;" data-page-node-id="r4je10FjD8QpyvCHR1u3a3">+</span>
+                <span data-page-node-id="4DxiWodFPE5saeWIjTbLvD">新建连接</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 主工作区 -->
+          <div class="main" data-page-node-id="hNHRI36wIVOSfe9ooHXH3V">
+            <div class="header" data-page-node-id="M3FWAPiDQsrdkmYQmJKayq">
+              <div class="header-status" data-page-node-id="6yFk1sx7qHmEEWsY3EMOgK">
+                <span class="conn-dot green" data-page-node-id="s7qTdORBxjB3zPb0OLhHpr"></span>
+                <span class="header-title" data-page-node-id="tZ91B4O0XLVeR7L0wEW0zW">本地 Broker</span>
+                <span class="header-meta" data-page-node-id="Vz2uJgBSIYprk0jgp1oJP7">mqtt://localhost:1883 · 已连接</span>
+              </div>
+              <div class="header-spacer" data-page-node-id="CdptinFTus0ZYaUQ7NBYY4"></div>
+              <div class="header-btn" data-page-node-id="birJ8vtbkDP3scz97xKyhC">导出</div>
+              <div class="header-btn" data-page-node-id="CLlSKjS24n9ZbLfGw8HPZI">设置</div>
+              <div class="header-btn primary" data-page-node-id="uXEyxZYdVAFXDxtamfGTFr">断开</div>
+            </div>
+
+            <div class="workspace" data-page-node-id="E97T0uNb5oaoy2xNyA4CKr">
+              <div class="sub-panel" data-page-node-id="g9CGaMvoLJaaw8Km1a4rqq">
+                <div class="sidebar-title" data-page-node-id="EU97uv7saLTJxosQ5zLsGk">订阅主题</div>
+                <div class="conn-item active" data-page-node-id="AesM0rZ0G0P5oQebyW7aGK">
+                  <span style="color: #3b82f6; font-size: 10px;" data-page-node-id="YtHb90Luby4YvtxDyJVTkf">●</span>
+                  <span style="font-size: 11px;" data-page-node-id="pvscPhGgGhJ5LMrl9G2KyE">sensors/#</span>
+                </div>
+                <div class="conn-item" data-page-node-id="nXQVPE5SeNt5ECSCPbeYTG">
+                  <span style="color: #10b981; font-size: 10px;" data-page-node-id="n9J4vcm783JHv5MAHAdQqS">●</span>
+                  <span style="font-size: 11px;" data-page-node-id="vX2iC7b5gOp7HOh5aBNF0p">home/+/temp</span>
+                </div>
+                <div class="conn-item" data-page-node-id="qszDI6Ml2h3cFd8jfmYO81">
+                  <span style="color: #f59e0b; font-size: 10px;" data-page-node-id="VsHUv1eW3exqCO11De1A3J">●</span>
+                  <span style="font-size: 11px;" data-page-node-id="Xqc6qrsIzwUEnfjWgUlVZ3">system/logs</span>
+                </div>
+              </div>
+
+              <div class="msg-area" data-page-node-id="bwDcLIEcJPn2vbxlfkp0C2">
+                <div class="msg-list" data-page-node-id="iPAyc8znkKS7Nb2aTN7CuP">
+                  <div class="msg-row" data-page-node-id="CAqygkHqu9SGgUJqoZ1RnT">
+                    <span class="msg-time" data-page-node-id="cW36kVFZSX232scXvp6d9U">18:24:01</span>
+                    <span class="msg-topic" data-page-node-id="CDGwaYUZnqJmv7BntEUwrH">sensors/temp</span>
+                    <span class="msg-payload" data-page-node-id="KDwD98AAsbCgOX01oEqFdT">{value: 23.5, unit: "℃"}</span>
+                  </div>
+                  <div class="msg-row" data-page-node-id="bElK1Iou6YFiZo0Ri0z9lM">
+                    <span class="msg-time" data-page-node-id="PIV5jj8H93Xx7DX53K9TZY">18:24:03</span>
+                    <span class="msg-topic" data-page-node-id="H9jisWc6jaKDuFRxBh37TO">sensors/humidity</span>
+                    <span class="msg-payload" data-page-node-id="b2WAQEXDrIiT5x2uSHjn05">{value: 65.2, unit: "%"}</span>
+                  </div>
+                  <div class="msg-row" data-page-node-id="nlmVaPdvlq4kWKswzxzbee">
+                    <span class="msg-time" data-page-node-id="YxE7R7oDv4uLEQ9eSpnAVt">18:24:05</span>
+                    <span class="msg-topic" data-page-node-id="SujwHInhZk28ZzXiGOX0Ne">home/living/temp</span>
+                    <span class="msg-payload" data-page-node-id="8mRUE8TWMKHqmOHVZcRjFC">{value: 22.1, unit: "℃"}</span>
+                  </div>
+                  <div class="msg-row" data-page-node-id="H3jmYGU13ND0R1Lnu72JHD">
+                    <span class="msg-time" data-page-node-id="LYiPK7fQL5NZjOYZ8SRFOo">18:24:07</span>
+                    <span class="msg-topic" data-page-node-id="tZ5NFV8HC8Wm8arWfc4pxG">system/logs</span>
+                    <span class="msg-payload" data-page-node-id="CnBXFvSLDEYm65OPgADWAf">MQTT client connected</span>
+                  </div>
+                </div>
+
+                <div class="publish" data-page-node-id="W9U76MZSfFGaMOW7idPU3g">
+                  <div style="flex: 1; display: flex; flex-direction: column; gap: 6px;" data-page-node-id="4Vf9QwXZCATiOqSFCADZna">
+                    <input
+                      placeholder="主题，如 sensors/temp"
+                      style="height: 26px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; padding: 0 10px; background: rgba(255,255,255,0.7); font-size: 11px; outline: none;" data-page-node-id="HzJlsskNpcUnNnyHB0lFIM"
+                    />
+                    <textarea
+                      placeholder="消息内容"
+                      style="flex: 1; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; padding: 6px 10px; background: rgba(255,255,255,0.7); font-size: 11px; resize: none; outline: none; font-family: 'Consolas', monospace;"
+                    >{"cmd":"set","value":24}</textarea>
+                  </div>
+                  <button
+                    style="align-self: flex-end; padding: 6px 14px; border-radius: 6px; background: linear-gradient(180deg, #60a5fa, #3b82f6); color: #fff; border: none; font-size: 12px; cursor: pointer;" data-page-node-id="Z54PgqnEfYK9acs0NNw8JR"
+                  >
+                    发布
+                  </button>
+                </div>
+              </div>
+
+              <div class="detail" data-page-node-id="CoaNoXDeJF6cpQ3OBuFeav">
+                <div class="sidebar-title" data-page-node-id="iEWFzbPFLRm76HXvtOlV6x">消息详情</div>
+                <div style="font-size: 11px; color: rgba(31,41,55,0.7); line-height: 1.6;" data-page-node-id="66NrDRDv3IyHDwt8OrZU37">
+                  <div style="margin-bottom: 6px;" data-page-node-id="TCSwZYw4hFGaazIYBR8VvS"><b data-page-node-id="h9pt9IYgFLQZn5OqVsPMkM">主题:</b> sensors/temp</div>
+                  <div style="margin-bottom: 6px;" data-page-node-id="PHv0VCYlRX6G654SrWtz5J"><b data-page-node-id="m8YyhQxLdlpEPDowycecTv">时间:</b> 2026-09-05 18:24:01</div>
+                  <div style="margin-bottom: 6px;" data-page-node-id="ImrmqjMlYtwOG61cgzBhFZ"><b data-page-node-id="BwBhTx90GDOX5zGIiZUDJq">QoS:</b> 0</div>
+                  <div data-page-node-id="9EAHCsB6HuHKd3hQ60fmHh"><b data-page-node-id="VCGNHEN4ESmvSks1lbP36s">载荷:</b></div>
+                  <pre style="background: rgba(0,0,0,0.05); padding: 8px; border-radius: 6px; margin-top: 4px; font-family: 'Consolas', monospace; font-size: 10px;" data-page-node-id="SMaA6I4AUIHRaEHCkOiVNf">{value: 23.5, unit: "℃"}</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+    </div>
+
+    <!-- 图例 -->
+    <div class="legend" data-page-node-id="5jePLGR0AuBStEj1ACYbHy">
+      <strong data-page-node-id="fNJDl0tzgGHv7xPhn4GZfO">效果说明</strong>
+      <div class="legend-item" data-page-node-id="Js8jac6UlQPvSYTYTK5bGa">
+        <span class="legend-dot blue" data-page-node-id="21cNX54KteSjWkGeSymqGh"></span>
+        <span data-page-node-id="UEugH9f6QyAj2r1uU5W5ez">主进程 <code data-page-node-id="wf2WgDYWEkdRfmz8t0n8iu">transparent: true</code> + body <code data-page-node-id="wf2WgDYWEkdRfmz8t0n8iu2">bg-transparent</code>，桌面真的透进 OS 窗口</span>
+      </div>
+      <div class="legend-item" data-page-node-id="ucAKmITBE2aBCvNwD3tBUB">
+        <span class="legend-dot green" data-page-node-id="kvpcIZ5fy9MStj3AnBIKC9"></span>
+        <span data-page-node-id="FYXBZiWoXZD4m9Pj35toSR">内部面板 0.82 白 + blur(12px)，桌面细节被挡住，无黑圈</span>
+      </div>
+      <div class="legend-item" data-page-node-id="CSipJ6VGKlJY9qjNSjYvPd">
+        <span class="legend-dot orange" data-page-node-id="dUpbkSpoxtIrLJ8xfdU4fX"></span>
+        <span data-page-node-id="CFhBgZYXBTbJ5ILzA4oRoI">.glass-shell <b data-page-node-id="CFhBgZYXBTbJ5ILzA4oRoI_2">0.7 半透明白 + blur(18px)</b>，无外投影，桌面只呈淡淡色影</span>
+      </div>
+    </div>
+  </body>
+</html>

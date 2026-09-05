@@ -1,0 +1,253 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================================
+ * 自定义字体 —— 阿里巴巴普惠体（AlibabaSans）。
+ * 来源：src/renderer/src/assets/font/*.woff2（用户提供的本地字体文件）。
+ * 字体族名统一叫 AlibabaSans，按 font-weight 自动匹配字重，
+ * 这样 Tailwind 的 font-medium / font-semibold / font-bold 会自动选对应字重。
+ * ========================================================================= */
+@font-face {
+  font-family: 'AlibabaSans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('./assets/font/AlibabaSans-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'AlibabaSans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('./assets/font/AlibabaSans-Medium.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'AlibabaSans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('./assets/font/AlibabaSans-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'AlibabaSans';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('./assets/font/AlibabaSans-Heavy.woff2') format('woff2');
+}
+
+@layer base {
+  :root {
+    --background: 210 40% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 217 91% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 95%;
+    --muted-foreground: 215 16% 45%;
+
+    --accent: 210 40% 95%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 60% 36%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 48%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 217 91% 55%;
+
+    --radius: 0.625rem;
+  }
+
+  .dark {
+    --background: 222 47% 7%;
+    --foreground: 210 40% 96%;
+
+    --card: 222 44% 10%;
+    --card-foreground: 210 40% 96%;
+
+    --popover: 222 44% 10%;
+    --popover-foreground: 210 40% 96%;
+
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 217 33% 16%;
+    --secondary-foreground: 210 40% 96%;
+
+    --muted: 217 33% 15%;
+    --muted-foreground: 215 20% 62%;
+
+    --accent: 217 33% 17%;
+    --accent-foreground: 210 40% 96%;
+
+    --destructive: 0 63% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 152 52% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    --border: 217 33% 18%;
+    --input: 217 33% 20%;
+    --ring: 217 91% 60%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    @apply text-foreground antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    overflow: hidden;
+    /* Electron 主进程已经把窗口背景设为系统亚克力材质（backgroundMaterial: 'acrylic'），
+     * 它自带的桌面模糊由操作系统 (DWM) 绘制，因此这里 body 必须保持完全透明，
+     * 否则任何彩色背景都会盖住亚克力。桌面壁纸由亚克力自动模糊后透进来。 */
+    background: transparent;
+  }
+
+  /* =========================================================================
+   * 全局字体兜底 —— 确保几乎所有元素都落到阿里巴巴普惠体。
+   * Tailwind v3 preflight 已经为 html/button/input/select/textarea 设了 inherit，
+   * 这里再兜一道，把 code/kbd/samp/output/var/tt 等较少用到的内联标签和
+   * 任何被第三方库（如 Radix internals）插入的元素，也强制走同一字体族。
+   * font-mono 已通过 tailwind config 把 AlibabaSans 放第一位达成同样的目的。
+   * 使用 CSS 变量 --app-font-sans 集中管理，便于后续统一调整。
+   * ========================================================================= */
+  :root {
+    --app-font-sans: 'AlibabaSans', "PingFang SC", "Hiragino Sans GB",
+      "Microsoft YaHei", -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Inter, sans-serif;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre,
+  tt,
+  var,
+  output {
+    font-family: var(--app-font-sans);
+  }
+
+  /* 全局滚动条：细窄、低调 */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full bg-border;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/40;
+  }
+}
+
+@layer utilities {
+  .no-drag {
+    -webkit-app-region: no-drag;
+  }
+  .drag {
+    -webkit-app-region: drag;
+  }
+  .truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  /* =========================================================================
+   * 窗口外壳 —— Win11 开始菜单风格的悬浮面板。
+   * 桌面模糊已由主进程 backgroundMaterial: 'acrylic'（系统亚克力）接管，
+   * 这里不要再写 backdrop-filter —— 它只能模糊网页内部，对操作系统桌面无效，
+   * 正是此前多轮「blur 没生效」的根源。
+   *
+   * 本层只给一点白色玻璃着色 + 圆角 + 细描边 + 顶部内亮边，
+   * 让系统亚克力的磨砂感透出来；不要涂太厚，否则模糊会被白色盖住。
+   * - shell:  0.6 白 + 系统亚克力模糊     → OS 窗口的磨砂玻璃主层
+   * - panel:  0.86 白（内部内容区模糊）  → 内容区
+   * - card:   0.94 白（内嵌卡片基本不透）→ 卡片
+   * 完全没有外投影（避免在 OS 透明的 8px 边距里形成黑圈）。
+   * ========================================================================= */
+  .glass-shell {
+    position: relative;
+    /* 面板现在铺满整个系统亚克力窗口，圆角由系统 roundedCorners 负责，
+     * 这里不再设 border-radius / border，否则四角会露出透明缝隙亮边。 */
+    background-color: rgb(255 255 255 / 0.6);
+    isolation: isolate;
+  }
+  .dark .glass-shell {
+    background-color: rgb(24 31 46 / 0.6);
+  }
+
+  /* 面板级别：内容区，blur 加到 16px 让上层桌面色影有效模糊 */
+  .glass-panel {
+    position: relative;
+    border-radius: 10px;
+    background-color: rgb(255 255 255 / 0.88);
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.22) inset;
+  }
+  .dark .glass-panel {
+    background-color: rgb(26 33 48 / 0.88);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.06) inset;
+  }
+
+  /* 玻璃卡片：内嵌卡片基本不透 */
+  .glass-card {
+    position: relative;
+    background-color: rgb(255 255 255 / 0.94);
+    backdrop-filter: blur(8px) saturate(110%);
+    -webkit-backdrop-filter: blur(8px) saturate(110%);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.25) inset;
+    border-radius: 10px;
+  }
+  .dark .glass-card {
+    background-color: rgb(30 39 55 / 0.94);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.08) inset;
+  }
+
+  /* 顶部标题栏：融入外壳顶部，无独立底色 */
+  .glass-titlebar {
+    background-color: transparent;
+    border-color: transparent;
+    box-shadow: none;
+  }
+}

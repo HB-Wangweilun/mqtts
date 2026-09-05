@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="ahxCxlyr1Qa3GDIVpeHxKE">
+<head data-page-node-id="t7J2OCDuNP7RYR0u9ZpzfS">
+<meta charset="UTF-8" data-page-node-id="0gQUNM4oMZhhhbyr9nDL2y" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="B9EJWMAGofnLDWaFCBGxnZ" />
+<title>MQTTS 窗口效果预览</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    color: #1e293b;
+    overflow: hidden;
+    /* 1. 蓝绿山水渐变背景（模拟 Win11 默认壁纸） */
+    background-color: #cfe9f2;
+    background-image:
+      radial-gradient(120% 90% at 20% 0%, hsl(203 95% 72% / .95) 0%, transparent 55%),
+      radial-gradient(100% 80% at 85% 5%, hsl(180 85% 62% / .8) 0%, transparent 50%),
+      linear-gradient(180deg, hsl(202 90% 66%) 0%, hsl(188 75% 55%) 34%, hsl(175 55% 46%) 55%, hsl(170 48% 40%) 72%, hsl(168 40% 36%) 100%);
+  }
+
+  /* 2. 窗口外壳：大圆角 + 顶部白亮边 + 强磨砂，悬浮在背景上 */
+  .shell {
+    position: absolute;
+    inset: 26px;
+    border-radius: 14px;
+    border: 1px solid rgb(255 255 255 / .65);
+    background:
+      linear-gradient(180deg, rgb(255 255 255 / .72) 0%, rgb(255 255 255 / .52) 26%, rgb(255 255 255 / .42) 100%);
+    backdrop-filter: blur(46px) saturate(150%);
+    -webkit-backdrop-filter: blur(46px) saturate(150%);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / .9) inset,
+      0 0 0 1px rgb(255 255 255 / .28),
+      0 32px 80px -24px rgb(15 23 42 / .45),
+      0 8px 24px -12px rgb(15 23 42 / .22);
+    display: flex;
+    flex-direction: column;
+    padding: 14px;
+  }
+
+  /* 标题栏 */
+  .titlebar {
+    flex-shrink: 0;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    -webkit-app-region: drag;
+  }
+  .logo {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, #2563eb, #4f46e5);
+    display: flex; align-items: center; justify-content: center;
+    color: #fff; font-size: 13px; font-weight: 600;
+  }
+  .brand { font-size: 14px; font-weight: 600; margin-left: 10px; letter-spacing: .3px; }
+  .brand-sub { font-size: 12px; color: #64748b; margin-left: 8px; }
+  .win-controls { margin-left: auto; display: flex; align-items: center; }
+  .wc { width: 44px; height: 34px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-size: 14px; color: #475569; }
+  .wc:hover { background: rgb(0 0 0 / .06); }
+  .wc.close:hover { background: #e11d48; color: #fff; }
+
+  /* 主区：左栏 + 工作区 */
+  .body { flex: 1; min-height: 0; display: flex; gap: 10px; }
+
+  /* 面板卡片基础 */
+  .panel {
+    border-radius: 10px;
+    border: 1px solid rgb(255 255 255 / .45);
+    background: rgb(255 255 255 / .55);
+    backdrop-filter: blur(20px) saturate(140%);
+    -webkit-backdrop-filter: blur(20px) saturate(140%);
+    box-shadow: 0 1px 0 0 rgb(255 255 255 / .65) inset,
+                0 8px 28px -16px rgb(15 23 42 / .2);
+  }
+
+  /* 左侧边栏 */
+  .sidebar { width: 252px; flex-shrink: 0; display: flex; flex-direction: column; }
+  .sidebar-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; font-size: 12px; color: #64748b; }
+  .plus { width: 26px; height: 26px; border-radius: 6px; background: #2563eb; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+  .search { margin: 0 14px; }
+  .search input { width: 100%; height: 30px; border: 1px solid rgb(100 116 139 / .25); border-radius: 8px; padding: 0 10px; font-size: 12px; background: rgb(255 255 255 / .6); }
+  .conn-list { flex: 1; overflow: auto; padding: 10px; }
+  .conn { display: flex; align-items: center; gap: 8px; padding: 10px; border-radius: 8px; }
+  .conn:hover, .conn.active { background: rgb(37 99 235 / .08); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot.on { background: #16a34a; box-shadow: 0 0 0 3px rgb(22 163 74 / .2); }
+  .dot.off { background: #94a3b8; }
+  .conn-name { font-size: 13px; font-weight: 500; }
+  .conn-addr { font-size: 11px; color: #64748b; font-family: "Consolas", monospace; }
+  .conn-status { font-size: 11px; color: #16a34a; margin-top: 2px; }
+
+  /* 工作区 */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+  .header { flex-shrink: 0; height: 52px; display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+  .header .name { font-size: 14px; font-weight: 600; }
+  .header .addr { font-size: 11px; color: #64748b; font-family: "Consolas", monospace; }
+  .badge { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: rgb(22 163 74 / .15); color: #15803d; }
+  .hdr-btns { margin-left: auto; display: flex; gap: 6px; }
+  .btn { font-size: 12px; padding: 6px 12px; border-radius: 7px; border: 1px solid rgb(100 116 139 / .3); background: rgb(255 255 255 / .7); color: #334155; }
+  .btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .cols { flex: 1; min-height: 0; display: flex; gap: 10px; }
+  .sub { width: 252px; flex-shrink: 0; display: flex; flex-direction: column; }
+  .sub-head { display: flex; align-items: center; gap: 6px; padding: 12px 14px; border-bottom: 1px solid rgb(100 116 139 / .15); font-size: 12px; font-weight: 500; }
+  .sub-add { padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .sub-add input { height: 30px; border: 1px solid rgb(100 116 139 / .25); border-radius: 8px; padding: 0 10px; font-size: 12px; background: rgb(255 255 255 / .6); font-family: "Consolas", monospace; }
+  .sub-add-row { display: flex; gap: 8px; }
+  .topic { display: flex; align-items: center; gap: 8px; padding: 10px; margin: 4px 12px; border-radius: 8px; }
+  .topic:hover { background: rgb(0 0 0 / .04); }
+  .topic .t { flex: 1; font-size: 12px; font-family: "Consolas", monospace; }
+  .topic-no { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .topic-list { flex: 1; overflow: auto; }
+
+  .content-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+  .msg-list { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .msg-toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid rgb(100 116 139 / .15); }
+  .seg { display: flex; background: rgb(255 255 255 / .4); border: 1px solid rgb(100 116 139 / .2); border-radius: 7px; padding: 2px; }
+  .seg b { font-weight: 500; font-size: 11px; padding: 3px 10px; border-radius: 5px; color: #64748b; }
+  .seg b.on { background: #2563eb; color: #fff; }
+  .msg-search { margin-left: auto; }
+  .msg-search input { width: 180px; height: 26px; border: 1px solid rgb(100 116 139 / .25); border-radius: 7px; padding: 0 8px; font-size: 11px; background: rgb(255 255 255 / .6); }
+  .msg-head { display: flex; align-items: center; padding: 6px 12px; font-size: 11px; color: #64748b; border-bottom: 1px solid rgb(255 255 255 / .3); background: rgb(255 255 255 / .2); }
+  .msg-head span { width: 90px; }
+  .msg-head span.topic-h { width: 150px; }
+  .msg-head span.flex { flex: 1; }
+  .msg-row { display: flex; align-items: center; padding: 6px 12px; font-size: 12px; border-bottom: 1px solid rgb(100 116 139 / .08); }
+  .msg-row:hover, .msg-row.sel { background: rgb(37 99 235 / .08); }
+  .msg-row span { width: 90px; color: #64748b; font-family: "Consolas", monospace; }
+  .msg-row span.topic-h { width: 150px; font-family: "Consolas", monospace; }
+  .msg-row span.flex { flex: 1; font-family: "Consolas", monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ico { width: 16px; text-align: center; margin-right: 4px; }
+  .in { color: #2563eb; } .out { color: #16a34a; }
+
+  .publish { flex-shrink: 0; padding: 12px; }
+  .pub-row { display: flex; gap: 8px; }
+  .pub-row input { flex: 1; height: 30px; border: 1px solid rgb(100 116 139 / .25); border-radius: 8px; padding: 0 10px; font-size: 12px; background: rgb(255 255 255 / .6); font-family: "Consolas", monospace; }
+  .pub-area { margin-top: 8px; display: flex; gap: 8px; }
+  .pub-area textarea { flex: 1; min-height: 60px; resize: none; border: 1px solid rgb(100 116 139 / .25); border-radius: 8px; padding: 8px; font-size: 12px; background: rgb(255 255 255 / .6); font-family: "Consolas", monospace; }
+
+  .hint { text-align: center; margin-top: 40px; font-size: 12px; color: #64748b; }
+</style>
+</head>
+<body data-page-node-id="Jpsabk8n0uL2wx2haREAeU">
+  <div class="shell" data-page-node-id="6MnclsdoqMimmyQPsWWgTD">
+    <div class="titlebar" data-page-node-id="hP0PjaPJJFKi9PoLEQTQMs">
+      <div class="logo" data-page-node-id="A6MBKpLatCuZukl7d2Otqi">M</div>
+      <div class="brand" data-page-node-id="JxGcWhSdiNrjm3Vwr2LgJM">MQTTS</div>
+      <div class="brand-sub" data-page-node-id="3AAiNSODhQOe2mrvO0Lv2r">· MQTT 桌面客户端</div>
+      <div class="win-controls" data-page-node-id="K4tcH4qlPPIDjVX8GaZejg">
+        <div class="wc" data-page-node-id="Z2rZneh8hlnv87HEbCOPT7">─</div>
+        <div class="wc" data-page-node-id="GUuWjPgTJPEEPFSGxAyv8j">▢</div>
+        <div class="wc close" data-page-node-id="qSeVzZAxdwaVJ8lL6OqsTw">✕</div>
+      </div>
+    </div>
+
+    <div class="body" data-page-node-id="W2DvbWBqJcuosHClnwwUFC">
+      <!-- 左侧连接栏 -->
+      <div class="sidebar panel" data-page-node-id="zg5vxa0G4nlWMQhAXlE63B">
+        <div class="sidebar-head" data-page-node-id="WeuQbO9E4yPJGwTFrymrWN"><span data-page-node-id="w1SVolPRX6ZK4tB8tWwleH">1 / 2 已连接</span><div class="plus" data-page-node-id="jitKNpRfqy792vx65LpxEd">+</div></div>
+        <div class="search" data-page-node-id="UWUDtDtgKldHrticOlmJLr"><input placeholder="搜索连接" data-page-node-id="1wZrrDk7ihX50PldZlUkBn" /></div>
+        <div class="conn-list" data-page-node-id="odHcBTAqZJvpK5NtqteILo">
+          <div class="conn active" data-page-node-id="u0u31uHKZUHc0icGh5FQ1f">
+            <div class="dot on" data-page-node-id="ahRfkbpx3d3061NhNoiy3D"></div>
+            <div data-page-node-id="4NIWSzIAc4pdHBY03RjBsx">
+              <div class="conn-name" data-page-node-id="vvxi9gLm7LkXt8N9rxok7F">生产环境 Broker</div>
+              <div class="conn-addr" data-page-node-id="UBc37c0Gkma82357z3fkPV">mqtts://broker.example.com:8883</div>
+              <div class="conn-status" data-page-node-id="rFspUEx4zHTxS8tGBEDddH">已连接 · 128 条消息</div>
+            </div>
+          </div>
+          <div class="conn" data-page-node-id="HV7d5bhlKvGWBC8NrBlriq">
+            <div class="dot off" data-page-node-id="BUDSUxvjhOgCCL3gGBD3YP"></div>
+            <div data-page-node-id="KJ1oGM7lYBPavTpsnBw4TE">
+              <div class="conn-name" data-page-node-id="ejfAqB3tm6UZfFVKlcFbrV">本地测试</div>
+              <div class="conn-addr" data-page-node-id="AXJt23ZBM4fdIOlEVPmaNS">mqtt://localhost:1883</div>
+              <div class="conn-status" data-page-node-id="JDLFZ3y7IUmZCwSENBE8JN">未连接</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 工作区 -->
+      <div class="main" data-page-node-id="NUmaNuuE88dJ3tEA0p818z">
+        <div class="header panel" data-page-node-id="EkY3WF3EFGdLBNcYW4ogMm">
+          <div class="dot on" data-page-node-id="dm5LP5BJ4ALiFmiltGBfYQ"></div>
+          <div data-page-node-id="0lvWGcYKkY7AzAWlE5EyMd">
+            <div style="display:flex;align-items:center;gap:8px" data-page-node-id="RFotMzCpLhcLVRo9tM1EIo">
+              <div class="name" data-page-node-id="GfT6nD6ubrBpx8PTQk4VB1">生产环境 Broker</div>
+              <div class="badge" data-page-node-id="qBtUC6E14pXvVkjAMjXuK1">已连接</div>
+            </div>
+            <div class="addr" data-page-node-id="c1TJLMzAeiLYSvvgiOgeoG">mqtts://broker.example.com:8883 · client-01</div>
+          </div>
+          <div class="hdr-btns" data-page-node-id="wQrHROEGh7nrMtfsABtzBA">
+            <button class="btn" data-page-node-id="Zx7ciAGmfM2wVprdv1lpb3">编辑</button>
+            <button class="btn" data-page-node-id="HymQXwpEm4rXTgVOzDwnlk">清空</button>
+            <button class="btn primary" data-page-node-id="L3kJN6mlIDHbQBeZRDsLPo">断开连接</button>
+          </div>
+        </div>
+
+        <div class="cols" data-page-node-id="oMcjisUdSi0xT7YW5XfMxG">
+          <!-- 订阅面板 -->
+          <div class="sub panel" data-page-node-id="OoFJbELRZux7ouXIFmv60W">
+            <div class="sub-head" data-page-node-id="pUrf5JpzoFUqqF9UNy1pNO"># 主题管理 <span style="margin-left:auto;font-size:11px;color:#64748b" data-page-node-id="5Yg5lhDKmDRD1zcD3HREkE">2</span></div>
+            <div class="sub-add" data-page-node-id="kMFt1HtHizjMkf1qrJhw5F">
+              <input placeholder="topic/#" data-page-node-id="JhpwamroSpoj88TM1qaGmK" />
+              <div class="sub-add-row" data-page-node-id="WUjBpNZzM9VJj10ifdHb8a">
+                <input style="width:88px" placeholder="QoS 0" data-page-node-id="yrgQYdFDvu5CLUG0Y8VOej" />
+                <button class="btn primary" style="flex:1" data-page-node-id="rmtQtV70zG80xXNrhnHpme">订阅</button>
+              </div>
+            </div>
+            <div class="topic-list" data-page-node-id="jdWWFzdCNOV6JvvgWqAFzQ">
+              <div class="topic" data-page-node-id="VfDGMhSDbUs6PyEcOa6Apf"><div class="topic-no" data-page-node-id="EzxoIAtF87F7hS9I3Nvn1d"><span class="t" data-page-node-id="NsUmUjbYt2ro4B8tPNShV0">device/+/status</span><span style="font-size:10px;color:#64748b" data-page-node-id="gEtj7y8Zymg8d6eMBUK3Vv">● 监听中 · 86 条</span></div></div>
+              <div class="topic" data-page-node-id="464zAZ61JaVLXGyBstrFbf"><div class="topic-no" data-page-node-id="kg0sNUhY0EFJ6ETIFuhOea"><span class="t" data-page-node-id="v5pvWOxDlyewguGvBYUHka">sensor/temp</span><span style="font-size:10px;color:#64748b" data-page-node-id="eTLl3tDJEAWQdQdfTTVuEh">● 监听中 · 42 条</span></div></div>
+            </div>
+          </div>
+
+          <!-- 消息列表 + 发布 -->
+          <div class="content-col" data-page-node-id="t8ztqP5G4FSYteCmyV3Els">
+            <div class="msg-list" data-page-node-id="Ghd8Hg0JJSPmwvg3DJTqJe">
+              <div class="msg-toolbar" data-page-node-id="f9IFOViIj2WA5cAGj2orx9">
+                <div class="seg" data-page-node-id="OC3nLZ2p4uVo1Xw1NWulTI"><b class="on" data-page-node-id="lHNcHNrhm2HPl5nd4ifrOP">全部</b><b data-page-node-id="VVwYWCL8WM01iEqMtuQSqR">接收</b><b data-page-node-id="67Pbid9gG6R5Rhc3udO46U">发送</b></div>
+                <div class="msg-search" data-page-node-id="096gMvuSFGtdhT7fqe3H9Z"><input placeholder="搜索主题或内容" data-page-node-id="dSbEp79ou7HmiVPbsplCGc" /></div>
+              </div>
+              <div class="msg-head" data-page-node-id="RZx3jiq2JRQthUC3RQHSNe"><span data-page-node-id="6M12ODDiOlMhNMza9kjhXi">时间</span><span class="topic-h" data-page-node-id="KsuTfQU3VPhYQv0o7Z2DVL">主题</span><span data-page-node-id="3QXPrzpNpvNqdjgvipH9CX">QoS</span><span class="flex" data-page-node-id="gQm20nVl1Nd9qUIojdB2r4">内容</span></div>
+              <div style="flex:1;overflow:auto" data-page-node-id="zLjYS8nWTUt90ChfGXjCk0">
+                <div class="msg-row sel" data-page-node-id="WupvnZxM6H0ugQNR8ayn7r"><span data-page-node-id="aSwYQZjxEeUAdbZJqfI0Vi">18:32:05</span><span class="topic-h" data-page-node-id="tgwUziLEINN7fKDDyQGFLQ">device/01/status</span><span data-page-node-id="Q7PrAm6QPdMNFQp0xu6Ee1">1</span><span class="flex" data-page-node-id="SWiAH3E6jgwFUoTJk7PG1I"><span class="ico in" data-page-node-id="n3mIEdX8tnJzDFeaBT8nkN">▾</span>{&quot;temp&quot;: 23.5}</span></div>
+                <div class="msg-row" data-page-node-id="vEBAiSkOgmXR6slby05Cvr"><span data-page-node-id="nEFTXcvtWKtf7fK4d4ujyF">18:31:51</span><span class="topic-h" data-page-node-id="4d2WUkgG4YWyjgrF1ugxx1">device/01/cmd</span><span data-page-node-id="95GILLX8hNapNxnFDnHQOY">0</span><span class="flex" data-page-node-id="np4rxzpRsljHWu8owPRFcI"><span class="ico out" data-page-node-id="dmkep6TFOhBELZfsATSeWw">▴</span>reboot</span></div>
+                <div class="msg-row" data-page-node-id="njeSWAikrxGDyWMuDCdWVv"><span data-page-node-id="FUX32a2BiaySvfBC20i95m">18:31:12</span><span class="topic-h" data-page-node-id="pGE9aL3znY5oEz6C5J8u1H">sensor/temp</span><span data-page-node-id="CJvuwqDDy9Gvpsb8oZ9BpA">0</span><span class="flex" data-page-node-id="sD5obdGAYdJNGzKGQjUUqP"><span class="ico in" data-page-node-id="J72NohGH40UAgpAaqAglom">▾</span>{&quot;c&quot;: 24.1}</span></div>
+              </div>
+            </div>
+            <div class="publish panel" data-page-node-id="AfrIteHJZcZqXqrA2jg4Ll">
+              <div class="pub-row" data-page-node-id="TrXQds0GsRBG11796Tt6iz"><input placeholder="发布到主题，例如 device/001/cmd" data-page-node-id="KTIHsgcIazh3AJTX9YDuk8" /><button class="btn primary" data-page-node-id="JerOL8LE47feOMmfKbzoqf">发送</button></div>
+              <div class="pub-area" data-page-node-id="K1qcT0RjQQbAWhSZLHnwXH"><textarea placeholder="消息内容，支持任意文本或 JSON">{"msg": "hello from MQTTS"}</textarea></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hint" data-page-node-id="QjMgZtUbXfTNYqMZWfvNpF">这是 MQTTS 窗口在「Win11 开始菜单磨砂玻璃」风格下的效果预览 —— 蓝绿渐变窗口后，悬浮一块圆角白磨砂玻璃面板。</div>
+</body>
+</html>

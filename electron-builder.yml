@@ -1,0 +1,62 @@
+appId: com.mqtts.desktop
+productName: MQTTS
+copyright: Copyright © 2026 MQTTS
+
+# 应用图标 —— 同时影响 Windows 安装包、桌面快捷方式、Portable exe、Mac DMG、Linux AppImage 的图标。
+# 必须是合法的 .ico（Windows）/ .icns（macOS）/ 512x512 PNG（Linux），electron-builder 会按平台自动转换。
+# 这里只放 ico 让 Windows 安装包/任务栏快捷方式图标正确显示。
+icon: logo/mqtt-icon.ico
+
+directories:
+  output: dist
+
+# 把 logo/ 目录作为额外资源打进安装包 resources/logo/ 下，
+# 主进程通过 process.resourcesPath 读取。开发模式不打包，
+# 主进程会走 app.getAppPath() 的根目录回退到 logo/mqtt-icon.ico。
+extraResources:
+  - from: logo
+    to: logo
+    filter:
+      - '**/*'
+
+files:
+  - out/**/*
+  - package.json
+
+asar: true
+compression: maximum
+npmRebuild: false
+
+win:
+  target:
+    - nsis
+    - portable
+
+# 两个 target 各自独立命名 —— 必须在 nsis / portable 块里分别定义 artifactName，
+# 不能用 win.artifactName + ${target} 占位符（${target} 变量在 win 级不展开）。
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: MQTTS
+  deleteAppDataOnUninstall: false
+  artifactName: ${productName}-${version}-${arch}-Setup.${ext}
+
+portable:
+  artifactName: ${productName}-${version}-${arch}-Portable.${ext}
+
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.developer-tools
+  darkModeSupport: true
+
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
+  maintainer: MQTTS
+
+publish: null
