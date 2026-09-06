@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Plus, Radio } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
@@ -73,6 +73,84 @@ export default function App() {
   useEffect(() => {
     bootstrap()
   }, [bootstrap])
+
+  /**
+   * 启动 loader 关掉时机：等 React 真正 commit 到 #root、并且 bootstrap 完成后
+   * 再去 dismiss —— 这是消除「loader 渐隐瞬间看到白屏」的关键。
+   *
+   * 之前在 main.tsx 里两次 requestAnimationFrame 后立刻 dismiss，
+   * 但 React 18+ 的 createRoot 是并发渲染、commit 是异步的，两次 rAF 根本不够等
+   * React 把组件挂到 DOM。结果 loader 在 260ms 淡出过程中 body 还是 transparent，
+   * acrylic 还没生效、React 内容也还没 commit —— 用户看到的就是桌面 wallpaper 透出来的"白"。
+   *
+   * 这里的修复：
+   *  - 第一次 effect（仅 mount 时）确保组件已经渲染（useEffect 本身就在 commit 后才跑）
+   *  - 等两帧 rAF 保证 paint 管线也跑完，第一帧内容已合成到屏幕
+   *  - 然后用 store.loading 从 true→false 作为"准备好了"的最终信号
+   *    （loading false 等于 bootstrap 完成、初始连接列表已到 React 状态里）
+   *  - dismiss 时 loader 摘掉时 #root 下已经是完整的玻璃外壳 + 侧边栏 + 工作区，
+   *    视觉上无缝衔接，不会看到"裸桌面"
+   *  - 用 ref 防止 React.StrictMode 双调用时重复 dismiss
+   */
+  const loaderDismissedRef = useRef(false)
+  useEffect(() => {
+    let raf1 = 0
+    let raf2 = 0
+    let timer: ReturnType<typeof setTimeout> | null = null
+
+    const dismiss = () => {
+      if (loaderDismissedRef.current) return
+      loaderDismissedRef.current = true
+      const loader = document.getElementById('app-loader')
+      if (loader && !loader.classList.contains('al-off')) {
+        loader.classList.add('al-off')
+        // 兜底 1.2 秒后从 DOM 移除（避免 transitionend 异常 + 防止占住点击/焦点）
+        setTimeout(() => {
+          if (loader.parentNode) loader.parentNode.removeChild(loader)
+        }, 1200)
+      }
+    }
+
+    // 等 React paint 完第一帧再讨论 dismiss
+    raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        // 此时 React 已 commit + Chromium 已合成第一帧，#root 下有内容了
+        // 但 bootstrap 可能还没完成（store.loading 仍是 true），看 bootstrap 情况：
+        if (!loading) {
+          // bootstrap 已就绪（极少见）：立即 dismiss
+          dismiss()
+        }
+        // 否则啥都不做，下面的 bootstrap 完成 effect 会再次触发 dismiss
+      })
+    })
+
+    return () => {
+      cancelAnimationFrame(raf1)
+      cancelAnimationFrame(raf2)
+      if (timer) clearTimeout(timer)
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * 监听 bootstrap 完成（loading: true → false），通知 loader 可以淡出。
+   * 这个 effect 跑在 store 状态更新 + React 重渲染 commit 之后，所以此时
+   * 整棵 React 树（包括 ConnectionSidebar 占位、EmptyState 提示）都已经 painted，
+   * 渐隐 loader 时不会有任何"裸桌面"窗口。
+   */
+  useEffect(() => {
+    if (loaderDismissedRef.current) return
+    if (loading) return // 等 bootstrap 完成
+    // 等一帧保证这次 "loading=false" 的 commit 也已经 painted
+    requestAnimationFrame(() => {
+      const loader = document.getElementById('app-loader')
+      if (!loader || loader.classList.contains('al-off')) return
+      loaderDismissedRef.current = true
+      loader.classList.add('al-off')
+      setTimeout(() => {
+        if (loader.parentNode) loader.parentNode.removeChild(loader)
+      }, 1200)
+    })
+  }, [loading])
 
   // 订阅主进程推送的事件
   useEffect(() => {

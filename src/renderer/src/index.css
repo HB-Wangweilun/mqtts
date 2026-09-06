@@ -244,6 +244,26 @@
       0 1px 0 0 rgb(255 255 255 / 0.08) inset;
   }
 
+  /* =========================================================================
+   * 弹窗（Dialog / AlertDialog）专用玻璃层。
+   * 关键：这里【绝对不能】设置 position —— 弹窗依赖 Tailwind 的 `fixed` +
+   * `left-1/2 top-1/2 -translate-x/y-1/2` 实现视口居中，一旦写了 position:relative，
+   * 就会在 @layer utilities 里排在 .fixed 之后把它覆盖，导致弹窗偏移/被遮罩层盖住
+   * （这正是本次「新建连接弹窗偏下、导出弹窗消失」的根因）。
+   * 弹窗浮在半透明遮罩层上方，本身需要较实的背景保证内容可读，
+   * 因此这里用更高不透明度的底色 + 1px 高亮内边，不写 backdrop-filter（避免 stacking context 意外）。
+   * ========================================================================= */
+  .glass-dialog {
+    background-color: rgb(255 255 255 / 0.97);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.55) inset;
+  }
+  .dark .glass-dialog {
+    background-color: rgb(26 33 48 / 0.97);
+    box-shadow:
+      0 1px 0 0 rgb(255 255 255 / 0.06) inset;
+  }
+
   /* 顶部标题栏：融入外壳顶部，无独立底色 */
   .glass-titlebar {
     background-color: transparent;

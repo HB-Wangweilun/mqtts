@@ -1,6 +1,6 @@
 {
   "name": "mqtts",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "MQTTS - 现代化的跨平台 MQTT 桌面客户端",
   "main": "./out/main/index.js",
   "author": "mqtts",

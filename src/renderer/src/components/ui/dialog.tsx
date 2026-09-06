@@ -36,7 +36,7 @@ const DialogContent = React.forwardRef<
         // 下会用 transform 覆盖 -translate-x-1/2 -translate-y-1/2 的居中定位，导致 200ms 内弹窗
         // 偏离中心，期间点击会被 Radix 视为 overlay 点击而自动关闭，表现就是"输入框不能输入"。
         // 只保留 fade 动画（仅影响 opacity，不碰 transform），居中定位始终生效。
-        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 glass-panel p-6 shadow-2xl border-white/60 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-xl',
+        'fixed left-1/2 top-1/2 z-50 grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 glass-dialog p-6 shadow-2xl border-white/60 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 sm:rounded-xl',
         className
       )}
       {...props}

@@ -1,13 +1,187 @@
 <!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;" />
+<html lang="zh-CN" data-page-node-id="vJKcsWoqAcg8i0NHDiILLo">
+  <head data-page-node-id="P25LS9ixIqrPKqOrz72Zi8">
+    <meta charset="UTF-8" data-page-node-id="fugz8SGsAKYQ3fUVULy18e" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="2iTT3CDQzHaoQHZCsTJ0pg" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;" data-page-node-id="lwsUjL1eraXDeE9a9i3V3S" />
     <title>MQTTS</title>
+    <style>
+      /*
+       * 冷启动 loader —— 必须 0 JS、0 字体、0 外链资源可显示，
+       * 因为从可执行文件拉起到 React 真正接管之间，存在一段没有任何 JS 跑过的窗口期
+       * （HTML 刚解析、模块脚本尚未下载/执行；OS 亚克力材质尚未生效）。
+       * 任何依赖 JS 的 loader 都没法消除这段白屏。
+       *
+       * 这里用 critical inline CSS + 纯 DOM 占位，HTML 一解析完就"已经在那"，
+       * 等 React 在 main.tsx 里渲染第一次 commit 后再 classList.add('al-off') 淡出接管。
+       */
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        /* ⚠️ 这里绝对不能写 background！
+         * OS 亚克力磨砂要求 html/body 全程 transparent（渲染层 Tailwind base 只重置了 body，
+         * html 没人管——如果在这里给 html 涂上 #f5f7fb，body 透明时透出的是 html 的
+         * 不透明白底，亚克力永远被盖住，窗口就是一片灰白）。
+         * loader 显示期间的底色由下方 #app-loader 自己的 background: #f5f7fb
+         * （position: fixed; inset: 0 全屏覆盖）承担，效果一样且摘除后无残留。 */
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI",
+          "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei",
+          "Helvetica Neue", Arial, sans-serif;
+        overflow: hidden;
+      }
+
+      #app-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: #f5f7fb;
+        z-index: 9999;
+        /* 淡出接管：opacity 1→0 + 微微向上飘（避免切换闪一下）。
+         * 这里特意只动 opacity 不动 background —— 整个淡出期间仍保持不透明 #f5f7fb，
+         * 等动画结束从 DOM 移除后才让 body transparent / OS 亚克力接管。
+         * 这是关键修复：之前版本在 loader 透明度降到 50% 时，已经能看到透出来的桌面色，
+         * React commit 还没完成 + acrylic 还没生效 + body transparent → 视觉上就是"白屏"。
+         * 现在 loader 整段淡出期间都覆盖满不透明背景，淡出结束立即摘除，中间无裸透明帧。*/
+        opacity: 1;
+        visibility: visible;
+        transition: opacity 260ms ease, transform 260ms ease, visibility 0s linear 0s;
+        will-change: opacity, transform;
+      }
+      #app-loader.al-off {
+        opacity: 0;
+        transform: scale(1.02);
+        pointer-events: none;
+        /* visibility 立即切到 hidden，让淡出动画期间不再接收交互/无障碍焦点 */
+        visibility: hidden;
+        transition: opacity 260ms ease, transform 260ms ease, visibility 0s linear 260ms;
+      }
+      /* 兜底：万一 React 永远接管不上（preload 挂掉之类），3.5 秒后强制隐藏，
+       * 避免用户一直盯着一张静态图。同时把 .al-stuck class 提供一个降级提示。 */
+      #app-loader.al-stuck::after {
+        content: "加载未完成，可尝试重启应用";
+        position: absolute;
+        bottom: 14%;
+        font-size: 12px;
+        color: #94a3b8;
+        letter-spacing: 0.02em;
+      }
+
+      /* —— Logo：CSS 绘制的圆角方块 + 中央白色"发射塔" —— */
+      .al-logo {
+        width: 64px;
+        height: 64px;
+        border-radius: 14px;
+        background: linear-gradient(135deg, #3b82f6 0%, #2563eb 60%, #1d4ed8 100%);
+        box-shadow:
+          0 8px 20px -6px rgb(37 99 235 / 0.5),
+          inset 0 1px 0 rgb(255 255 255 / 0.25);
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation: al-logo-pulse 1.8s ease-in-out infinite;
+      }
+      .al-logo::before {
+        /* 中心装饰：模拟"信号波"的一根竖线 + 顶端小圆点 */
+        content: "";
+        width: 4px;
+        height: 18px;
+        border-radius: 2px;
+        background: #ffffff;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -30%);
+      }
+      .al-logo::after {
+        content: "";
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #ffffff;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -130%);
+        box-shadow:
+          0 0 0 5px rgb(255 255 255 / 0.18),
+          0 0 0 10px rgb(255 255 255 / 0.08);
+      }
+      @keyframes al-logo-pulse {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50%      { transform: translateY(-2px) scale(1.04); }
+      }
+
+      /* —— 文字标题 —— */
+      .al-title {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        color: #0f172a;
+        margin-top: 4px;
+      }
+      .al-caption {
+        font-size: 12px;
+        color: #64748b;
+        letter-spacing: 0.02em;
+        min-height: 14px;
+      }
+
+      /* —— 三个脉动点 —— */
+      .al-dots {
+        display: inline-flex;
+        gap: 6px;
+        align-items: center;
+        margin-top: 2px;
+      }
+      .al-dots > span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #3b82f6;
+        opacity: 0.35;
+        animation: al-dot 1.2s ease-in-out infinite;
+      }
+      .al-dots > span:nth-child(2) { animation-delay: 0.15s; }
+      .al-dots > span:nth-child(3) { animation-delay: 0.3s; }
+      @keyframes al-dot {
+        0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+        30%           { opacity: 1;    transform: translateY(-3px); }
+      }
+
+      /* 偏好降低动效的用户——一律给静态版 */
+      @media (prefers-reduced-motion: reduce) {
+        #app-loader { transition: none; }
+        .al-logo, .al-dots > span { animation: none; }
+        .al-logo { transform: none; }
+      }
+    </style>
   </head>
-  <body>
-    <div id="root"></div>
+  <body data-page-node-id="jvzNZO3h5o0hmpHpayY2zg">
+    <!--
+      React 在 #root 接管之前，整个 DOM 上只有这一张 loader 占位。
+      关键点：
+      1. 这里写在 <body> 直接子节点里 —— 优先级高于 #root，避免被 React 的 wrapper 短暂盖住。
+      2. z-index: 9999 + position: fixed —— React 的 root 树无论多大都不会遮挡。
+      3. App.tsx 在 bootstrap 完成（store.loading 变 false）+ 等一帧 paint 后调用
+         classList.add('al-off')，触发 260ms 淡出。main.tsx 在这里不调用 dismiss 是有意为之——
+         React 18+ createRoot 是并发渲染，两次 rAF 根本不够等 commit，
+         在 main.tsx 触发 dismiss 会导致 loader 渐隐瞬间 React 内容还没上屏，body transparent
+         那帧被 OS 透出桌面 wallpaper，视觉上就是"白屏"。
+    -->
+    <div id="app-loader" role="status" aria-label="应用加载中" data-page-node-id="2gjSF2iaArgyCCpAP4Lapu">
+      <div class="al-logo" aria-hidden="true" data-page-node-id="7LHLvoN045SeG15oKbTRKn"></div>
+      <div class="al-title" data-page-node-id="hokAG1c0QyoKiVbDazqArC">MQTTS</div>
+      <div class="al-dots" aria-hidden="true" data-page-node-id="73NktkWqOBVlkvgmCJdCZF"><span data-page-node-id="0WU4NYusu1jms8O2zAA8y8"></span><span data-page-node-id="D7d4sUAhxEgevpqWzVJlLY"></span><span data-page-node-id="FNZKS3KkyOtGc5ZCgmlIUe"></span></div>
+      <div class="al-caption" data-page-node-id="V9eSFx6t4JEShP4auzOl3S">正在加载连接…</div>
+    </div>
+    <div id="root" data-page-node-id="rnTqzw8dP3LVOG4zyhKeqg"></div>
     <script type="module" src="/renderer/src/main.tsx"></script>
   </body>
 </html>
